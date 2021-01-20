@@ -41,16 +41,14 @@ Man pages for HTTP status codes
 
 Usage:
   statcode [-n] [-H]
-  statcode [-n] <query>
+  statcode [-n] [-H] <query>
   statcode (-h | --help)
   statcode --version
 
 Options:
   -h --help    Show this screen
   -n --no-ui   output without UI
-  -H --HEADER  Default behavior is to list all status
-               codes. If -H is specified, statcode will
-               list all headers.
+  -H --HEADER  search / list headers
 
 * <query> refers to either an HTTP status code or header.
 
@@ -68,7 +66,7 @@ show info for specific <query>:
 --
   $ statcode 200
 
-  $ statcode Accept-Charset
+  $ statcode -H Accept-Charset
 
 """
 
@@ -284,22 +282,22 @@ def output_without_ui(content):
     text = ("\n".join(text.decode("utf-8") for text in canvas.text)).rstrip()
     print(text)
 
-def generate_content(status_code):
+def generate_content(status_code, header):
     try:
-        code_descriptions, num, status_code = get_yaml_dictionary(status_code)
-        content = code_descriptions[status_code]
+        descriptions = get_yaml_dictionary(header)
+        content = descriptions[status_code]
         pile = urwid.Pile([
             urwid.Text("STATCODE: The Manual for HTTP Status Codes and Headers\n", align="center"),
-            urwid.Text(("title", "STATUS MESSAGE" if num else "HEADER INFO")),
+            urwid.Text(("title", "STATUS MESSAGE" if header else "HEADER INFO")),
             urwid.Padding(
-                urwid.Text(''.join([str(status_code), ": " if num else ", Example= ", content["message"], '\n'])),
+                urwid.Text(''.join([str(status_code), ": " if header else ", Example= ", content["message"], '\n'])),
                 left=5),
             urwid.Text(("title", "CATEGORY")),
             urwid.Padding(urwid.Text(''.join([content["category"], '\n'])), left=5),
             urwid.Text(("title", "DESCRIPTION")),
             urwid.Padding(urwid.Text(''.join([content["description"], '\n'])), left=5),
             urwid.Text(("title", "COPYRIGHT")),
-            urwid.Padding(urwid.Text(''.join([__load_file_data(num), '\n'])), left=5),
+            urwid.Padding(urwid.Text(''.join([__load_file_data(header), '\n'])), left=5),
         ])
         padding = urwid.Padding(Scrollable(pile), left=1, right=1)
 
@@ -314,22 +312,21 @@ def __load_file_data(num):
     else:
         return copyleft['headers']
 
-def get_yaml_dictionary(status_code):
-    try:
-        status_code = int(status_code)
-        num = True
-        filename = "code_descriptions.yml"
-    except (TypeError, ValueError):
-        num = False
+def get_yaml_dictionary(header=False):
+
+    if header:
         filename = "header_descriptions.yml"
+    else:
+        filename = "code_descriptions.yml"
+    
     try:
-        code_descriptions = yaml.safe_load(
+        descriptions = yaml.safe_load(
             open('/'.join([CURR_DIR, filename]), 'r'))
     except yaml.constructor.ConstructorError:
         print("Invalid file. Only support valid json and yaml files.")
         sys.exit(1)
 
-    return code_descriptions, num, status_code
+    return descriptions
 
 def print_help():
     print(''.join([BOLD, "statcode v1.0.0 – Made by @shobrook", END, '\n']))
@@ -342,13 +339,12 @@ def print_help():
 
 def print_all(header=False):
     if header:
-        code_descriptions, num, status_code = get_yaml_dictionary("Accept")
+        descriptions = get_yaml_dictionary(True)
     else:
-        code_descriptions, num, status_code = get_yaml_dictionary(200)
+        descriptions = get_yaml_dictionary()
 
-    del status_code
-    for k, v in code_descriptions.items():
-        print("".join([RED, str(k), ":", END, " ", v["message"] if num else ""]))
+    for k, v in descriptions.items():
+        print("".join([RED, str(k), ":", END, " ", v["message"] if not header else ""]))
 
 
 ######
@@ -366,7 +362,7 @@ def main():
     else:
         status_code = arguments["<query>"]
         without_ui = arguments["--no-ui"]
-        content = generate_content(status_code)
+        content = generate_content(status_code, arguments["--HEADER"])
 
     if content:
         if without_ui or not is_not_dumb:
